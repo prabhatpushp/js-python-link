@@ -31,83 +31,57 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 });
 
 function updateConnectionStatus(isConnected) {
-    const statusDiv = document.getElementById("connectionStatus");
-    const retryButton = document.getElementById("retryButton");
     const startButton = document.getElementById("startButton");
-    const startIcon = startButton.querySelector(".start-icon");
-    const startText = startButton.querySelector(".start-text");
-    const stopIcon = startButton.querySelector(".stop-icon");
-    const stopText = startButton.querySelector(".stop-text");
+    const buttonText = startButton.querySelector(".button-text");
 
     if (!isInitialized) {
-        statusDiv.className = "status disconnected";
-        statusDiv.textContent = "Not Initialized";
-        retryButton.disabled = true;
         startButton.disabled = true;
+        buttonText.textContent = "Not Initialized";
+        startButton.classList.remove("connected");
         return;
     }
 
     if (!isStarted) {
-        statusDiv.className = "status disconnected";
-        statusDiv.textContent = "Stopped";
-        retryButton.disabled = true;
-
-        // Show start button state
-        startIcon.classList.remove("hidden");
-        startText.classList.remove("hidden");
-        stopIcon.classList.add("hidden");
-        stopText.classList.add("hidden");
-        startButton.classList.remove("started");
         startButton.disabled = false;
+        buttonText.textContent = "Start";
+        startButton.classList.remove("connected");
         return;
     }
 
-    statusDiv.className = `status ${isConnected ? "connected" : "disconnected"}`;
-    statusDiv.textContent = isConnected ? "Connected" : "Connection Failed";
-    retryButton.disabled = isConnected;
     startButton.disabled = false;
-
-    // Show stop button state
-    startIcon.classList.add("hidden");
-    startText.classList.add("hidden");
-    stopIcon.classList.remove("hidden");
-    stopText.classList.remove("hidden");
-    startButton.classList.add("started");
+    buttonText.textContent = isConnected ? "Stop" : "Connecting...";
+    startButton.classList.toggle("connected", isConnected);
 }
 
 function updateCommandHistory(history) {
-    const historyContainer = document.getElementById("commandHistory");
-    if (!historyContainer) return;
+    const commandEntries = document.getElementById("commandEntries");
+    if (!commandEntries) return;
 
-    historyContainer.innerHTML = "";
-    history
-        .slice()
-        .reverse()
-        .forEach((item) => {
-            const entry = document.createElement("div");
-            entry.className = "command-entry";
-            const time = new Date(item.timestamp).toLocaleTimeString();
-            entry.innerHTML = `
-            <div class="command-time">${time}</div>
-            <div class="command-content">${JSON.stringify(item.command, null, 2)}</div>
-        `;
-            historyContainer.appendChild(entry);
-        });
+    commandEntries.innerHTML = "";
 
-    // Show/hide command history section based on content
-    const commandSection = document.getElementById("commandHistorySection");
-    commandSection.classList.toggle("hidden", history.length === 0);
+    if (history && history.length > 0) {
+        history
+            .slice()
+            .reverse()
+            .forEach((item) => {
+                const entry = document.createElement("div");
+                entry.className = "command-entry";
+                const time = new Date(item.timestamp).toLocaleTimeString();
+                entry.innerHTML = `
+                <div class="command-time">${time}</div>
+                <div class="command-content">${JSON.stringify(item.command, null, 2)}</div>
+            `;
+                commandEntries.appendChild(entry);
+            });
+    }
 }
 
 function addLogEntry(content, level = "info") {
-    const logContainer = document.getElementById("logContainer");
+    const logEntries = document.getElementById("logEntries");
     const entry = document.createElement("div");
     entry.className = `log-entry ${level}`;
     entry.textContent = `${new Date().toLocaleTimeString()} - ${content}`;
-    logContainer.insertBefore(entry, logContainer.firstChild);
-
-    // Show logs section when entries are added
-    document.getElementById("logsSection").classList.remove("hidden");
+    logEntries.insertBefore(entry, logEntries.firstChild);
 }
 
 // Initialize the extension when popup opens
@@ -144,22 +118,21 @@ document.getElementById("startButton").addEventListener("click", () => {
     updateConnectionStatus(false);
 });
 
-// Handle retry button click
-document.getElementById("retryButton").addEventListener("click", () => {
-    if (isStarted) {
-        chrome.runtime.sendMessage({ type: "retry" });
-        addLogEntry("Retrying connection...", "info");
-    }
+// Handle settings button click
+document.getElementById("settingsButton").addEventListener("click", () => {
+    chrome.runtime.openOptionsPage();
 });
 
 // Handle clear logs click
-document.getElementById("clearLogs").addEventListener("click", () => {
-    document.getElementById("logContainer").innerHTML = "";
-    document.getElementById("commandHistory").innerHTML = "";
-    // Hide sections when cleared
-    document.getElementById("logsSection").classList.add("hidden");
-    document.getElementById("commandHistorySection").classList.add("hidden");
-    addLogEntry("Logs cleared", "info");
+document.getElementById("clearLogs")?.addEventListener("click", () => {
+    // Clear entries
+    document.getElementById("logEntries").innerHTML = "";
+    document.getElementById("commandEntries").innerHTML = "";
+
+    // Add the "cleared" log entry after a brief delay to ensure empty state is shown
+    setTimeout(() => {
+        addLogEntry("Logs cleared", "info");
+    }, 50);
 });
 
 // Handle window unload (exit)

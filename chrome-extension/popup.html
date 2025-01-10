@@ -3,7 +3,6 @@
     <head>
         <title>Calculator Extension Monitor</title>
         <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
-        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&icon_names=play_arrow" />
         <style>
             * {
                 box-sizing: border-box;
@@ -26,25 +25,6 @@
                 background: white;
             }
 
-            .status {
-                padding: 8px;
-                margin-bottom: 8px;
-                border-radius: 4px;
-                text-align: center;
-                background: white;
-                font-weight: bold;
-            }
-
-            .connected {
-                background-color: #d4edda;
-                color: #155724;
-            }
-
-            .disconnected {
-                background-color: #f8d7da;
-                color: #721c24;
-            }
-
             .button-container {
                 display: flex;
                 gap: 8px;
@@ -58,26 +38,85 @@
                 display: flex;
                 align-items: center;
                 justify-content: center;
-                gap: 6px;
-                padding: 8px 12px;
+                gap: 8px;
+                padding: 10px 16px;
                 font-weight: 500;
-                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+                background: linear-gradient(to bottom, #ffffff 0%, #f5f5f5 100%);
+                color: #333;
+                border: 1px solid #d1d1d1;
+                border-radius: 6px;
                 transition: all 0.2s ease;
+                box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+                position: relative;
+                overflow: hidden;
             }
 
             .button-container button:hover {
-                background-color: #0056b3;
-                box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+                background: linear-gradient(to bottom, #ffffff 0%, #f0f0f0 100%);
+                border-color: #b8b8b8;
                 transform: translateY(-1px);
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.9);
             }
 
             .button-container button:active {
+                background: linear-gradient(to top, #f0f0f0 0%, #e8e8e8 100%);
+                box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.5);
                 transform: translateY(0);
-                box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+                border-color: #b0b0b0;
             }
 
-            .button-container button .material-icons {
-                font-size: 18px;
+            .connection-dot {
+                width: 8px;
+                height: 8px;
+                border-radius: 50%;
+                background: #dc3545;
+                transition: all 0.3s ease;
+                box-shadow: 0 0 0 rgba(220, 53, 69, 0.4);
+            }
+
+            .connected .connection-dot {
+                background: #28a745;
+                box-shadow: 0 0 12px rgba(40, 167, 69, 0.6);
+                animation: pulse 2s infinite;
+            }
+
+            @keyframes pulse {
+                0% {
+                    box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.6);
+                }
+                70% {
+                    box-shadow: 0 0 0 6px rgba(40, 167, 69, 0);
+                }
+                100% {
+                    box-shadow: 0 0 0 0 rgba(40, 167, 69, 0);
+                }
+            }
+
+            #startButton {
+                min-width: 120px;
+            }
+
+            #settingsButton {
+                min-width: 46px;
+                color: #555;
+            }
+
+            #settingsButton .material-icons {
+                font-size: 20px;
+                transition: transform 0.3s ease;
+            }
+
+            #settingsButton:hover .material-icons {
+                transform: rotate(30deg);
+            }
+
+            button:disabled {
+                opacity: 0.6;
+                cursor: not-allowed;
+                background: linear-gradient(to bottom, #f5f5f5 0%, #eeeeee 100%);
+                border-color: #ddd;
+                box-shadow: none;
+                transform: none;
             }
 
             .container {
@@ -101,6 +140,54 @@
                 background: #f8f9fa;
                 border-radius: 4px;
                 margin-bottom: 4px;
+                font-size: 13px;
+            }
+
+            .empty-state {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                height: 100%;
+                color: #6c757d;
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: white;
+                opacity: 1;
+                visibility: visible;
+                transition: opacity 0.2s ease;
+                pointer-events: none;
+            }
+
+            #commandEntries:not(:empty) ~ #emptyCommandState,
+            #logEntries:not(:empty) ~ #emptyLogState {
+                opacity: 0;
+                visibility: hidden;
+            }
+
+            #commandHistory,
+            #logContainer {
+                position: relative;
+                min-height: 100px;
+            }
+
+            .empty-message {
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                gap: 8px;
+                padding: 16px;
+                text-align: center;
+            }
+
+            .empty-message .material-icons {
+                font-size: 24px;
+                opacity: 0.7;
+            }
+
+            .empty-message span:not(.material-icons) {
                 font-size: 13px;
             }
 
@@ -226,30 +313,55 @@
             .hidden {
                 display: none !important;
             }
+
+            #startButton:disabled {
+                opacity: 0.7;
+                cursor: not-allowed;
+            }
+
+            #settingsButton {
+                color: #666;
+            }
+
+            #settingsButton:hover {
+                color: #333;
+            }
         </style>
     </head>
     <body>
-        <div id="connectionStatus" class="status disconnected">Not Started</div>
         <div class="button-container">
             <button id="startButton" class="control-button">
-                <span class="start-icon material-symbols-outlined">play_arrow</span>
-                <span class="start-text">Start</span>
-                <span class="stop-icon material-icons hidden">stop</span>
-                <span class="stop-text hidden">Stop</span>
+                <span class="connection-dot"></span>
+                <span class="button-text">Start</span>
             </button>
-            <button id="retryButton" class="control-button" disabled>
-                <span class="material-icons">refresh</span>
-                <span>Retry Connection</span>
+            <button id="settingsButton" class="control-button">
+                <span class="material-icons">settings</span>
             </button>
         </div>
         <div class="container">
             <div id="commandHistorySection" class="section">
                 <div class="section-title">Command History</div>
-                <div class="command-container" id="commandHistory"></div>
+                <div class="command-container" id="commandHistory">
+                    <div id="commandEntries"></div>
+                    <div class="empty-state" id="emptyCommandState">
+                        <div class="empty-message">
+                            <span class="material-icons">history</span>
+                            <span>No commands received</span>
+                        </div>
+                    </div>
+                </div>
             </div>
             <div id="logsSection" class="section">
                 <div class="section-title">Logs</div>
-                <div class="log-container" id="logContainer"></div>
+                <div class="log-container" id="logContainer">
+                    <div id="logEntries"></div>
+                    <div class="empty-state" id="emptyLogState">
+                        <div class="empty-message">
+                            <span class="material-icons">article</span>
+                            <span>No logs yet</span>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
         <div class="clear-logs" id="clearLogs">
