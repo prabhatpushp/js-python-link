@@ -1,12 +1,12 @@
 {
     "manifest_version": 3,
-    "name": "Calculator Extension",
+    "name": "Python Controller Extension",
     "version": "1.0",
-    "description": "A simple calculator extension controlled by Python",
-    "permissions": ["scripting", "storage"],
-    "host_permissions": ["http://localhost:8000/*"],
+    "description": "Chrome extension for Python controller communication",
+    "permissions": ["activeTab", "scripting"],
+    "host_permissions": ["ws://localhost:8000/*"],
     "action": {
-        "default_title": "Calculator Extension"
+        "default_title": "Python Controller"
     },
     "background": {
         "service_worker": "background.js",

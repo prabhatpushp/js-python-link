@@ -1,6 +1,7 @@
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
-import json
+from app.core.websocket_manager import WebSocketManager
+from app.core.command_registry import CommandRegistry
 
 app = FastAPI()
 
@@ -13,36 +14,27 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Store active connections
-active_connections: list[WebSocket] = []
+# Initialize core components
+websocket_manager = WebSocketManager()
+command_registry = CommandRegistry(websocket_manager)
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
-    active_connections.append(websocket)
+    await websocket_manager.connect(websocket)
     try:
         while True:
             # Keep the connection alive
             await websocket.receive_text()
     except:
-        active_connections.remove(websocket)
+        websocket_manager.disconnect(websocket)
 
 @app.post("/calculate/{num1}/{num2}")
 async def calculate(num1: int, num2: int):
-    if not active_connections:
-        return {"error": "No active WebSocket connections"}
+    calculate_command = command_registry.get_command("calculate")
+    if not calculate_command:
+        return {"error": "Calculate command not found"}
     
-    # Send calculation command to extension
-    command = {
-        "type": "calculate",
-        "num1": num1,
-        "num2": num2
-    }
-    
-    for connection in active_connections:
-        await connection.send_json(command)
-    
-    return {"message": "Calculation command sent"}
+    return await calculate_command.execute(num1=num1, num2=num2)
 
 if __name__ == "__main__":
     import uvicorn
