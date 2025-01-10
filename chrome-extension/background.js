@@ -1,29 +1,75 @@
 import { WebSocketClient } from "./core/websocket-client.js";
 
-let wsClient = null;
-let isStarted = false;
-let monitorWindow = null;
-let commandHistory = [];
-let extensionTab = null; // Track the tab where extension was opened
+// Global state management
+const STATE = {
+    wsClient: null,
+    isStarted: false,
+    monitorWindow: null,
+    commandHistory: [],
+    extensionTab: null,
+    activeConnections: new Map(), // Track active connections by tab ID
+};
+
+// Function to cleanup resources
+async function cleanup(clientId = null, forceCleanup = false) {
+    try {
+        if (clientId) {
+            // Cleanup specific client
+            STATE.activeConnections.delete(clientId);
+        } else {
+            // Cleanup all
+            if (STATE.wsClient) {
+                STATE.wsClient.disconnect();
+                STATE.wsClient = null;
+            }
+            STATE.activeConnections.clear();
+        }
+
+        if (STATE.activeConnections.size === 0 || forceCleanup) {
+            STATE.isStarted = false;
+            STATE.monitorWindow = null;
+            STATE.extensionTab = null;
+            STATE.commandHistory = [];
+            broadcastStatus(false);
+
+            // Reload the extension's background page to clear any lingering state
+            if (forceCleanup) {
+                chrome.runtime.reload();
+            }
+        }
+    } catch (error) {
+        console.error("Error during cleanup:", error);
+    }
+}
 
 // Function to create monitor window
 async function createMonitorWindow() {
     try {
-        if (monitorWindow) {
+        if (STATE.monitorWindow) {
             try {
-                const window = await chrome.windows.get(monitorWindow.id);
+                const window = await chrome.windows.get(STATE.monitorWindow.id);
                 if (window) {
-                    chrome.windows.update(monitorWindow.id, { focused: true });
+                    chrome.windows.update(STATE.monitorWindow.id, { focused: true });
                     return;
                 }
             } catch (e) {
-                // Window doesn't exist anymore
+                await cleanup(null, true);
             }
         }
 
-        // Get the current active tab before creating popup
         const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-        extensionTab = tab;
+        const clientId = tab.id.toString();
+
+        // Force cleanup of any existing connection for this tab
+        if (STATE.activeConnections.has(clientId)) {
+            await cleanup(clientId, true);
+        }
+
+        STATE.extensionTab = tab;
+        STATE.activeConnections.set(clientId, {
+            tabId: tab.id,
+            timestamp: Date.now(),
+        });
 
         const window = await chrome.windows.create({
             url: "popup.html",
@@ -32,72 +78,67 @@ async function createMonitorWindow() {
             height: 600,
             focused: true,
         });
-        monitorWindow = window;
+        STATE.monitorWindow = window;
 
-        // Inject the content script into the target tab
         await chrome.scripting.executeScript({
-            target: { tabId: extensionTab.id },
+            target: { tabId: STATE.extensionTab.id },
             files: ["commands.js"],
         });
     } catch (error) {
         console.error("Error creating monitor window:", error);
+        await cleanup(null, true);
     }
 }
 
 // Function to broadcast status to all extension views
 function broadcastStatus(connected) {
     try {
-        if (monitorWindow) {
+        if (STATE.monitorWindow) {
             chrome.runtime
                 .sendMessage({
                     type: "status",
                     connected: connected,
-                    isStarted: isStarted,
-                    commandHistory: commandHistory,
+                    isStarted: STATE.isStarted,
+                    commandHistory: STATE.commandHistory,
                 })
-                .catch(() => {
-                    // Ignore errors when popup is closed
-                });
+                .catch(() => {});
         }
     } catch (error) {
-        console.log("Error broadcasting status:", error);
+        console.error("Error broadcasting status:", error);
     }
 }
 
 // Function to log messages to the UI
 function logToUI(content, level = "info") {
     try {
-        if (monitorWindow) {
+        if (STATE.monitorWindow && STATE.isStarted) {
             chrome.runtime
                 .sendMessage({
                     type: "log",
                     content: content,
                     level: level,
                 })
-                .catch(() => {
-                    // Ignore errors when popup is closed
-                });
+                .catch(() => {});
         }
     } catch (error) {
-        console.log("Error logging to UI:", error);
+        console.error("Error logging to UI:", error);
     }
 }
 
 // Function to execute command in extension tab
 async function executeCommandInExtensionTab(command) {
     try {
-        if (!extensionTab) {
+        if (!STATE.extensionTab) {
             throw new Error("Extension tab not found. Please reopen the extension.");
         }
 
-        // Check if the tab still exists
         try {
-            await chrome.tabs.get(extensionTab.id);
+            await chrome.tabs.get(STATE.extensionTab.id);
         } catch (e) {
             throw new Error("Original tab no longer exists. Please reopen the extension.");
         }
 
-        const response = await chrome.tabs.sendMessage(extensionTab.id, command);
+        const response = await chrome.tabs.sendMessage(STATE.extensionTab.id, command);
         return response;
     } catch (error) {
         return { success: false, error: error.message };
@@ -109,31 +150,56 @@ chrome.action.onClicked.addListener(() => {
     createMonitorWindow();
 });
 
+// Listen for window removal
+chrome.windows.onRemoved.addListener(async (windowId) => {
+    if (STATE.monitorWindow && STATE.monitorWindow.id === windowId) {
+        await cleanup(null, true); // Force cleanup when popup is closed
+    }
+});
+
+// Listen for tab removal
+chrome.tabs.onRemoved.addListener(async (tabId) => {
+    if (STATE.extensionTab && STATE.extensionTab.id === tabId) {
+        await cleanup(null, true); // Force cleanup when monitored tab is closed
+    }
+    const clientId = tabId.toString();
+    if (STATE.activeConnections.has(clientId)) {
+        await cleanup(clientId);
+    }
+});
+
 // Handle messages from popup
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     try {
+        const clientId = sender.tab ? sender.tab.id.toString() : "popup";
+
         switch (message.type) {
             case "start":
-                isStarted = true;
-                if (!wsClient) {
-                    wsClient = new WebSocketClient("ws://localhost:8000/ws");
-                    wsClient.setHandlers({
-                        onStatusChange: broadcastStatus,
+                if (STATE.wsClient && STATE.wsClient.isConnected) {
+                    broadcastStatus(true);
+                    return;
+                }
+                STATE.isStarted = true;
+                if (!STATE.wsClient) {
+                    STATE.wsClient = new WebSocketClient("ws://localhost:8000/ws");
+                    STATE.wsClient.setHandlers({
+                        onStatusChange: (connected) => {
+                            if (!STATE.isStarted) return;
+                            broadcastStatus(connected);
+                        },
                         onMessage: async (message) => {
+                            if (!STATE.isStarted) return;
                             try {
-                                // Store command in history
-                                commandHistory.push({
+                                STATE.commandHistory.push({
                                     timestamp: new Date().toISOString(),
                                     command: message,
                                 });
-                                // Keep only last 100 commands
-                                if (commandHistory.length > 100) {
-                                    commandHistory.shift();
+                                if (STATE.commandHistory.length > 100) {
+                                    STATE.commandHistory.shift();
                                 }
 
                                 logToUI(`Received command: ${JSON.stringify(message)}`, "info");
 
-                                // Execute command in extension tab
                                 const result = await executeCommandInExtensionTab(message);
                                 if (result.success) {
                                     logToUI(`Command executed successfully: ${JSON.stringify(result)}`, "success");
@@ -141,8 +207,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                                     logToUI(`Command execution failed: ${result.error}`, "error");
                                 }
 
-                                // Broadcast updated status with new command history
-                                broadcastStatus(wsClient.isConnected);
+                                if (STATE.isStarted) {
+                                    broadcastStatus(STATE.wsClient.isConnected);
+                                }
                             } catch (error) {
                                 logToUI(`Error processing message: ${error.message}`, "error");
                             }
@@ -150,30 +217,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                         onLog: logToUI,
                     });
                 }
-                wsClient.connect();
-                wsClient.startKeepAlive();
+                STATE.wsClient.connect();
+                STATE.wsClient.startKeepAlive();
                 break;
 
             case "stop":
-                if (wsClient) {
-                    wsClient.disconnect();
-                }
-                isStarted = false;
+                cleanup(clientId, true).catch(console.error); // Force cleanup on manual stop
                 logToUI("Extension stopped", "info");
                 break;
 
             case "retry":
-                if (isStarted && wsClient) {
-                    wsClient.connect();
+                if (STATE.isStarted && STATE.wsClient) {
+                    STATE.wsClient.connect();
                 }
                 break;
 
             case "getStatus":
                 sendResponse({
                     type: "status",
-                    connected: wsClient ? wsClient.isConnected : false,
-                    isStarted: isStarted,
-                    commandHistory: commandHistory,
+                    connected: STATE.wsClient ? STATE.wsClient.isConnected : false,
+                    isStarted: STATE.isStarted,
+                    commandHistory: STATE.commandHistory,
                 });
                 break;
         }

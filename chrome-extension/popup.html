@@ -2,6 +2,8 @@
 <html>
     <head>
         <title>Calculator Extension Monitor</title>
+        <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet" />
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&icon_names=play_arrow" />
         <style>
             * {
                 box-sizing: border-box;
@@ -14,7 +16,7 @@
                 width: 100%;
                 height: 100%;
                 overflow: hidden;
-                font-family: Arial, sans-serif;
+                font-family: "Segoe UI", Arial, sans-serif;
             }
 
             body {
@@ -53,6 +55,29 @@
 
             .button-container button {
                 flex: 1;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                gap: 6px;
+                padding: 8px 12px;
+                font-weight: 500;
+                box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+                transition: all 0.2s ease;
+            }
+
+            .button-container button:hover {
+                background-color: #0056b3;
+                box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+                transform: translateY(-1px);
+            }
+
+            .button-container button:active {
+                transform: translateY(0);
+                box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+            }
+
+            .button-container button .material-icons {
+                font-size: 18px;
             }
 
             .container {
@@ -172,25 +197,45 @@
                 background-color: #dc3545;
             }
 
+            #startButton.started:hover {
+                background-color: #c82333;
+            }
+
             .clear-logs {
+                display: flex;
+                align-items: center;
+                justify-content: flex-end;
+                gap: 4px;
                 font-size: 11px;
                 color: #6c757d;
-                text-align: right;
                 cursor: pointer;
                 padding: 4px 0;
                 user-select: none;
             }
 
+            .clear-logs .material-icons {
+                font-size: 14px;
+            }
+
             .clear-logs:hover {
                 color: #343a40;
+            }
+            .material-symbols-outlined {
+                font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
             }
         </style>
     </head>
     <body>
         <div id="connectionStatus" class="status disconnected">Not Started</div>
         <div class="button-container">
-            <button id="startButton">Start Extension</button>
-            <button id="retryButton" disabled>Retry Connection</button>
+            <button id="startButton">
+                <span class="material-symbols-outlined">play_arrow</span>
+                Start Extension
+            </button>
+            <button id="retryButton" disabled>
+                <span class="material-icons">refresh</span>
+                Retry Connection
+            </button>
         </div>
         <div class="container">
             <div class="section">
@@ -206,7 +251,10 @@
                 </div>
             </div>
         </div>
-        <div class="clear-logs" id="clearLogs">Clear All</div>
+        <div class="clear-logs" id="clearLogs">
+            <span class="material-icons">delete_outline</span>
+            Clear All
+        </div>
         <script src="popup.js"></script>
     </body>
 </html>
