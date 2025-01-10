@@ -116,7 +116,6 @@
                 scrollbar-color: #90a4ae #cfd8dc;
             }
 
-            /* Webkit scrollbar styles */
             .log-container::-webkit-scrollbar,
             .command-container::-webkit-scrollbar {
                 width: 8px;
@@ -223,37 +222,39 @@
             .material-symbols-outlined {
                 font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
             }
+
+            .hidden {
+                display: none !important;
+            }
         </style>
     </head>
     <body>
         <div id="connectionStatus" class="status disconnected">Not Started</div>
         <div class="button-container">
-            <button id="startButton">
-                <span class="material-symbols-outlined">play_arrow</span>
-                Start Extension
+            <button id="startButton" class="control-button">
+                <span class="start-icon material-symbols-outlined">play_arrow</span>
+                <span class="start-text">Start</span>
+                <span class="stop-icon material-icons hidden">stop</span>
+                <span class="stop-text hidden">Stop</span>
             </button>
-            <button id="retryButton" disabled>
+            <button id="retryButton" class="control-button" disabled>
                 <span class="material-icons">refresh</span>
-                Retry Connection
+                <span>Retry Connection</span>
             </button>
         </div>
         <div class="container">
-            <div class="section">
+            <div id="commandHistorySection" class="section">
                 <div class="section-title">Command History</div>
-                <div class="command-container" id="commandHistory">
-                    <!-- Commands will be inserted here -->
-                </div>
+                <div class="command-container" id="commandHistory"></div>
             </div>
-            <div class="section">
+            <div id="logsSection" class="section">
                 <div class="section-title">Logs</div>
-                <div class="log-container" id="logContainer">
-                    <!-- Logs will be inserted here -->
-                </div>
+                <div class="log-container" id="logContainer"></div>
             </div>
         </div>
         <div class="clear-logs" id="clearLogs">
             <span class="material-icons">delete_outline</span>
-            Clear All
+            <span>Clear All</span>
         </div>
         <script src="popup.js"></script>
     </body>

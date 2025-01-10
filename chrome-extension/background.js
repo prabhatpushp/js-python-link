@@ -3,6 +3,7 @@ import { WebSocketClient } from "./core/websocket-client.js";
 // Global state management
 const STATE = {
     wsClient: null,
+    isInitialized: false,
     isStarted: false,
     monitorWindow: null,
     commandHistory: [],
@@ -145,8 +146,55 @@ async function executeCommandInExtensionTab(command) {
     }
 }
 
+// Function to initialize the extension
+async function initializeExtension() {
+    if (!STATE.isInitialized) {
+        STATE.isInitialized = true;
+        // Initialize WebSocket client without connecting
+        if (!STATE.wsClient) {
+            STATE.wsClient = new WebSocketClient("ws://localhost:8000/ws");
+            STATE.wsClient.setHandlers({
+                onStatusChange: (connected) => {
+                    if (!STATE.isStarted) return;
+                    broadcastStatus(connected);
+                },
+                onMessage: async (message) => {
+                    if (!STATE.isStarted) return;
+                    try {
+                        STATE.commandHistory.push({
+                            timestamp: new Date().toISOString(),
+                            command: message,
+                        });
+                        if (STATE.commandHistory.length > 100) {
+                            STATE.commandHistory.shift();
+                        }
+
+                        logToUI(`Received command: ${JSON.stringify(message)}`, "info");
+
+                        const result = await executeCommandInExtensionTab(message);
+                        if (result.success) {
+                            logToUI(`Command executed successfully: ${JSON.stringify(result)}`, "success");
+                        } else {
+                            logToUI(`Command execution failed: ${result.error}`, "error");
+                        }
+
+                        if (STATE.isStarted) {
+                            broadcastStatus(STATE.wsClient.isConnected);
+                        }
+                    } catch (error) {
+                        logToUI(`Error processing message: ${error.message}`, "error");
+                    }
+                },
+                onLog: logToUI,
+            });
+        }
+    }
+    return STATE.isInitialized;
+}
+
 // Listen for extension icon click
-chrome.action.onClicked.addListener(() => {
+chrome.action.onClicked.addListener(async () => {
+    await initializeExtension();
     createMonitorWindow();
 });
 
@@ -174,56 +222,37 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const clientId = sender.tab ? sender.tab.id.toString() : "popup";
 
         switch (message.type) {
+            case "initialize":
+                initializeExtension().then(() => {
+                    broadcastStatus(STATE.wsClient?.isConnected || false);
+                    sendResponse({ isInitialized: STATE.isInitialized });
+                });
+                return true; // Keep the message channel open for async response
+
             case "start":
-                if (STATE.wsClient && STATE.wsClient.isConnected) {
-                    broadcastStatus(true);
-                    return;
+                if (!STATE.isInitialized) {
+                    logToUI("Extension not initialized. Please initialize first.", "error");
+                    break;
                 }
                 STATE.isStarted = true;
-                if (!STATE.wsClient) {
-                    STATE.wsClient = new WebSocketClient("ws://localhost:8000/ws");
-                    STATE.wsClient.setHandlers({
-                        onStatusChange: (connected) => {
-                            if (!STATE.isStarted) return;
-                            broadcastStatus(connected);
-                        },
-                        onMessage: async (message) => {
-                            if (!STATE.isStarted) return;
-                            try {
-                                STATE.commandHistory.push({
-                                    timestamp: new Date().toISOString(),
-                                    command: message,
-                                });
-                                if (STATE.commandHistory.length > 100) {
-                                    STATE.commandHistory.shift();
-                                }
-
-                                logToUI(`Received command: ${JSON.stringify(message)}`, "info");
-
-                                const result = await executeCommandInExtensionTab(message);
-                                if (result.success) {
-                                    logToUI(`Command executed successfully: ${JSON.stringify(result)}`, "success");
-                                } else {
-                                    logToUI(`Command execution failed: ${result.error}`, "error");
-                                }
-
-                                if (STATE.isStarted) {
-                                    broadcastStatus(STATE.wsClient.isConnected);
-                                }
-                            } catch (error) {
-                                logToUI(`Error processing message: ${error.message}`, "error");
-                            }
-                        },
-                        onLog: logToUI,
-                    });
+                if (STATE.wsClient) {
+                    STATE.wsClient.connect();
+                    STATE.wsClient.startKeepAlive();
                 }
-                STATE.wsClient.connect();
-                STATE.wsClient.startKeepAlive();
                 break;
 
             case "stop":
-                cleanup(clientId, true).catch(console.error); // Force cleanup on manual stop
-                logToUI("Extension stopped", "info");
+                if (STATE.wsClient) {
+                    STATE.wsClient.disconnect();
+                    STATE.isStarted = false;
+                    broadcastStatus(false);
+                    logToUI("Connection stopped", "info");
+                }
+                break;
+
+            case "exit":
+                cleanup(clientId, true).catch(console.error);
+                logToUI("Extension exited", "info");
                 break;
 
             case "retry":
@@ -237,6 +266,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     type: "status",
                     connected: STATE.wsClient ? STATE.wsClient.isConnected : false,
                     isStarted: STATE.isStarted,
+                    isInitialized: STATE.isInitialized,
                     commandHistory: STATE.commandHistory,
                 });
                 break;
