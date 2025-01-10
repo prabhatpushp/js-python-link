@@ -1,0 +1,21 @@
+{
+    "manifest_version": 3,
+    "name": "Calculator Extension",
+    "version": "1.0",
+    "description": "A simple calculator extension controlled by Python",
+    "permissions": ["scripting", "storage"],
+    "host_permissions": ["http://localhost:8000/*"],
+    "action": {
+        "default_title": "Calculator Extension"
+    },
+    "background": {
+        "service_worker": "background.js",
+        "type": "module"
+    },
+    "content_scripts": [
+        {
+            "matches": ["<all_urls>"],
+            "js": ["content.js"]
+        }
+    ]
+}
