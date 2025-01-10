@@ -270,6 +270,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     commandHistory: STATE.commandHistory,
                 });
                 break;
+
+            case "clearHistory":
+                STATE.commandHistory = [];
+                broadcastStatus(STATE.wsClient ? STATE.wsClient.isConnected : false);
+                break;
         }
     } catch (error) {
         logToUI(`Error handling message: ${error.message}`, "error");

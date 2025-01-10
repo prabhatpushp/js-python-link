@@ -129,6 +129,9 @@ document.getElementById("clearLogs")?.addEventListener("click", () => {
     document.getElementById("logEntries").innerHTML = "";
     document.getElementById("commandEntries").innerHTML = "";
 
+    // Send message to background script to clear command history
+    chrome.runtime.sendMessage({ type: "clearHistory" });
+
     // Add the "cleared" log entry after a brief delay to ensure empty state is shown
     setTimeout(() => {
         addLogEntry("Logs cleared", "info");
