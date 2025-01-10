@@ -1,15 +1,10 @@
 import { WebSocketClient } from "./core/websocket-client.js";
-import { CommandRegistry } from "./core/command-registry.js";
-import { CalculateCommand } from "./commands/calculate-command.js";
 
 let wsClient = null;
 let isStarted = false;
 let monitorWindow = null;
 let commandHistory = [];
-
-// Initialize command registry and register commands
-const commandRegistry = new CommandRegistry();
-commandRegistry.register(new CalculateCommand());
+let extensionTab = null; // Track the tab where extension was opened
 
 // Function to create monitor window
 async function createMonitorWindow() {
@@ -26,6 +21,10 @@ async function createMonitorWindow() {
             }
         }
 
+        // Get the current active tab before creating popup
+        const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+        extensionTab = tab;
+
         const window = await chrome.windows.create({
             url: "popup.html",
             type: "popup",
@@ -34,6 +33,12 @@ async function createMonitorWindow() {
             focused: true,
         });
         monitorWindow = window;
+
+        // Inject the content script into the target tab
+        await chrome.scripting.executeScript({
+            target: { tabId: extensionTab.id },
+            files: ["commands.js"],
+        });
     } catch (error) {
         console.error("Error creating monitor window:", error);
     }
@@ -78,6 +83,27 @@ function logToUI(content, level = "info") {
     }
 }
 
+// Function to execute command in extension tab
+async function executeCommandInExtensionTab(command) {
+    try {
+        if (!extensionTab) {
+            throw new Error("Extension tab not found. Please reopen the extension.");
+        }
+
+        // Check if the tab still exists
+        try {
+            await chrome.tabs.get(extensionTab.id);
+        } catch (e) {
+            throw new Error("Original tab no longer exists. Please reopen the extension.");
+        }
+
+        const response = await chrome.tabs.sendMessage(extensionTab.id, command);
+        return response;
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+}
+
 // Listen for extension icon click
 chrome.action.onClicked.addListener(() => {
     createMonitorWindow();
@@ -107,15 +133,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
                                 logToUI(`Received command: ${JSON.stringify(message)}`, "info");
 
-                                if (commandRegistry.hasCommand(message.type)) {
-                                    const result = await commandRegistry.executeCommand(message.type, message);
-                                    if (result.success) {
-                                        logToUI(result.message, "success");
-                                    } else {
-                                        logToUI(result.error, "error");
-                                    }
+                                // Execute command in extension tab
+                                const result = await executeCommandInExtensionTab(message);
+                                if (result.success) {
+                                    logToUI(`Command executed successfully: ${JSON.stringify(result)}`, "success");
                                 } else {
-                                    logToUI(`Unknown command type: ${message.type}`, "error");
+                                    logToUI(`Command execution failed: ${result.error}`, "error");
                                 }
 
                                 // Broadcast updated status with new command history
