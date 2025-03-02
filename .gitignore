@@ -1,48 +1,33 @@
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-env/
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-*.egg-info/
-.installed.cfg
-*.egg
-.env
-venv/
-.venv/
+# Ignore node_modules
+/node_modules/
 
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
+# Ignore local storage
+/localstorage/
+
+# Ignore VS Code settings
+/.vscode/
+
+# Ignore log files
+*.log
+
+# Ignore Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore environment settings
+.env
+.venv/
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Ignore macOS system files
 .DS_Store
 
-# Chrome Extension
-chrome-extension/node_modules/
-chrome-extension/dist/
-chrome-extension/*.zip
-chrome-extension/*.crx
-chrome-extension/*.pem
-
-# Logs
-*.log
-logs/
+# Ignore npm debug log files
 npm-debug.log*
 
-# Testing
-.coverage
-htmlcov/
-.pytest_cache/
