@@ -25,7 +25,7 @@ JS-Python-Link is a project that connects JavaScript and Python applications, al
 ## Installation
 1. Clone the repository:
    ```bash
-   git clone <YOUR_GIT_URL>
+   git clone https://github.com/prabhatpushp/js-python-link
    cd js-python-link
    ```
 2. Install the required dependencies for the Python backend:
